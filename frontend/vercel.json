@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/join/:token", "destination": "/" },
+    { "source": "/about", "destination": "/" }
+  ]
+}
