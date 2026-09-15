@@ -7,7 +7,24 @@
     <title>PeerView | Practice together</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main style="padding: 3rem; font-family: sans-serif">
+        <h1>PeerView</h1>
+        <p>Loading the practice room...</p>
+      </main>
+    </div>
+    <script>
+      window.addEventListener('error', function (event) {
+        var root = document.getElementById('root')
+        if (!root || !event.message) return
+        root.innerHTML = '<main style="padding: 3rem; font-family: sans-serif"><h1>PeerView could not load</h1><p>' + event.message.replace(/[&<>"']/g, function (character) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] }) + '</p><p>Refresh the page and check the deployment logs if this continues.</p></main>'
+      })
+      window.addEventListener('unhandledrejection', function (event) {
+        var root = document.getElementById('root')
+        if (!root || !event.reason) return
+        root.innerHTML = '<main style="padding: 3rem; font-family: sans-serif"><h1>PeerView could not load</h1><p>Unexpected startup error. Refresh the page and check the deployment logs.</p></main>'
+      })
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
