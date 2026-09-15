@@ -1,0 +1,11 @@
+# Java / Maven
+backend/target/
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+
+# Local environment files
+.env
+backend/.env
+frontend/.env
