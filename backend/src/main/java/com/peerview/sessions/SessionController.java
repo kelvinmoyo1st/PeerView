@@ -46,6 +46,11 @@ public class SessionController {
         return SessionResponse.from(service.join(token, request.name(), request.email()), notifications, request.email());
     }
 
+    @GetMapping("/invite/{token}")
+    public InviteResponse invite(@PathVariable String token) {
+        return service.invite(token);
+    }
+
     private User user(Authentication authentication) {
         return users.findByEmailIgnoreCase(authentication.getName()).orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
@@ -59,6 +64,7 @@ public class SessionController {
     public record CreateSessionRequest(@NotNull UUID domainId, @NotNull UUID interviewTypeId, @NotNull SessionRole hostRole,
                                        @NotBlank @Email String peerEmail) {}
     public record JoinRequest(@NotBlank String name, @NotBlank @Email String email) {}
+    public record InviteResponse(String domain, String interviewType, SessionStatus status) {}
     public record SessionResponse(UUID id, String domain, String interviewType, SessionStatus status, SessionRole role, String inviteUrl, List<SectionResponse> sections) {
         static SessionResponse from(InterviewSession session, InviteNotificationService notifications, String viewerEmail) {
             SessionRole role = session.getInterviewer() != null && session.getInterviewer().getEmail().equalsIgnoreCase(viewerEmail)

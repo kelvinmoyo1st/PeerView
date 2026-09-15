@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
+export const API_BASE_URL = (import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8080' : '')).replace(/\/$/, '')
 
 export type User = {
   id: string
@@ -35,14 +35,20 @@ type AuthResponse = {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('peerview_token')
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const target = `${API_BASE_URL}${path}`
+  let response: Response
+  try {
+    response = await fetch(target, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
-  })
+    })
+  } catch {
+    throw new Error(`PeerView could not reach its backend at ${API_BASE_URL || window.location.origin}. Set VITE_API_URL to the Render backend URL.`)
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { message?: string } | null
@@ -94,6 +100,10 @@ export function joinSession(token: string, name: string, email: string) {
     method: 'POST',
     body: JSON.stringify({ name, email }),
   })
+}
+
+export function getInvite(token: string) {
+  return request<{ domain: string; interviewType: string; status: string }>(`/api/sessions/invite/${token}`)
 }
 
 export function getQuestions(sessionId: string) {

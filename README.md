@@ -1,4 +1,4 @@
-# PeerView
+7df7598 Fix browser global for WebSocket client# PeerView
 
 Peer-to-peer mock interview platform for realistic interview practice with another person.
 
@@ -54,3 +54,11 @@ Backend tests use an in-memory H2 database so they do not require a local Postgr
 5. Warm the Render service before a live demo because the free tier sleeps when idle.
 
 Google OAuth redirect URI: `https://<render-backend-host>/login/oauth2/code/google`.
+
+### Invite email settings
+
+Invite email delivery is disabled by default. To enable it on Render, set `MAIL_ENABLED=true` and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS`, and `MAIL_FROM`. The `MAIL_FROM` address must be accepted by your SMTP provider. The generated invite URL uses `FRONTEND_URL`, which must be the deployed Vercel URL, not localhost.
+
+### Invite join settings
+
+Set the Vercel environment variable `VITE_API_URL` to the complete Render backend origin, for example `https://peerview-backend.onrender.com`, then redeploy Vercel. The join page validates `/api/sessions/invite/{token}` before showing the form; a missing API URL now reports the configuration problem instead of showing a generic fetch failure.

@@ -43,6 +43,7 @@ com/peerview/questions/GeminiQuestionGenerator.class
 com/peerview/questions/SessionQuestion.class
 com/peerview/catalog/CatalogSeeder.class
 com/peerview/transcripts/TranscriptController$ErrorResponse.class
+com/peerview/sessions/SessionController$InviteResponse.class
 com/peerview/auth/OAuth2SuccessHandler.class
 com/peerview/auth/AuthController$ErrorResponse.class
 com/peerview/questions/QuestionService.class

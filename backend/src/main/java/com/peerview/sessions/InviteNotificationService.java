@@ -15,14 +15,17 @@ public class InviteNotificationService {
     private final ObjectProvider<JavaMailSender> mailSender;
     private final boolean enabled;
     private final String frontendUrl;
+    private final String from;
 
     public InviteNotificationService(
             ObjectProvider<JavaMailSender> mailSender,
             @Value("${peerview.mail.enabled:false}") boolean enabled,
-            @Value("${peerview.frontend-url}") String frontendUrl) {
+            @Value("${peerview.frontend-url}") String frontendUrl,
+            @Value("${peerview.mail.from:}") String from) {
         this.mailSender = mailSender;
         this.enabled = enabled;
         this.frontendUrl = frontendUrl;
+        this.from = from;
     }
 
     public String inviteUrl(String token) {
@@ -35,10 +38,15 @@ public class InviteNotificationService {
             log.info("Invite email disabled; invite URL for {} is {}", email, url);
             return;
         }
+        JavaMailSender sender = mailSender.getIfAvailable();
+        if (sender == null || from.isBlank()) {
+            throw new IllegalStateException("Email is enabled but SMTP_HOST and MAIL_FROM are not configured");
+        }
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(from);
         message.setTo(email);
         message.setSubject(hostName + " invited you to a PeerView interview");
         message.setText("Join the interview here: " + url);
-        mailSender.getObject().send(message);
+        sender.send(message);
     }
 }

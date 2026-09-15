@@ -51,4 +51,11 @@ public class SessionService {
         session.join(peer, peerRole);
         return session;
     }
+
+    @Transactional(readOnly = true)
+    public SessionController.InviteResponse invite(String token) {
+        InterviewSession session = sessions.findByInviteToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Invite not found or expired"));
+        return new SessionController.InviteResponse(session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus());
+    }
 }
