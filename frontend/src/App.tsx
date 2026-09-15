@@ -11,7 +11,8 @@ function App() {
     saveToken(oauthToken)
     window.history.replaceState({}, '', window.location.pathname)
   }
-  const joinToken = window.location.pathname.startsWith('/join/') ? window.location.pathname.split('/')[2] : null
+  const joinTokenFromQuery = new URLSearchParams(window.location.search).get('join')
+  const joinToken = window.location.pathname.startsWith('/join/') ? window.location.pathname.split('/')[2] : joinTokenFromQuery
   const isAbout = window.location.pathname === '/about'
   const [user, setUser] = useState<User | null>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -43,12 +44,12 @@ function App() {
     }
   }
 
+  if (joinToken) return <JoinPage token={joinToken} currentUser={user} />
   if (user) {
     return <Dashboard user={user} onSignOut={() => { clearToken(); setUser(null) }} />
   }
 
   if (isAbout) return <AboutPage />
-  if (joinToken) return <JoinPage token={joinToken} />
 
   return (
     <main className="page-shell">
@@ -172,20 +173,36 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   )
 }
 
-function JoinPage({ token }: { token: string }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [session, setSession] = useState<Session | null>(null)
+function JoinPage({ token, currentUser, initialSession }: { token: string; currentUser?: User | null; initialSession?: Session | null }) {
+  const [name, setName] = useState(currentUser?.name ?? '')
+  const [email, setEmail] = useState(currentUser?.email ?? '')
+  const [session, setSession] = useState<Session | null>(initialSession ?? null)
   const [active, setActive] = useState(false)
   const [error, setError] = useState('')
   const [invite, setInvite] = useState<{ domain: string; interviewType: string; status: string } | null>(null)
-  useEffect(() => { getInvite(token).then(setInvite).catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'This invite could not be loaded')) }, [token])
+
+  useEffect(() => {
+    if (currentUser && !session) {
+      joinSession(token, currentUser.name, currentUser.email)
+        .then((joined) => setSession(joined))
+        .catch((joinError) => setError(joinError instanceof Error ? joinError.message : 'Unable to join invite'))
+    }
+  }, [currentUser, session, token])
+
+  useEffect(() => {
+    getInvite(token)
+      .then(setInvite)
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'This invite could not be loaded'))
+  }, [token])
+
   async function join(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     try { setSession(await joinSession(token, name, email)) } catch (joinError) { setError(joinError instanceof Error ? joinError.message : 'Unable to join invite') }
   }
+
   if (session && active) return <CallRoom session={session} onEnd={() => setActive(false)} />
-  return <main className="page-shell join-page"><nav className="topbar"><a className="brand" href="/"><span className="brand-mark" aria-hidden="true">PV</span><span>PeerView</span></a></nav><section className="join-card"><p className="eyebrow">You are invited</p><h1>Step into the practice room.</h1>{invite && <p className="hero-text">{invite.domain} / {invite.interviewType}. Tell us who is joining. Your role is assigned automatically.</p>}{error && <p className="form-error" role="alert">{error}</p>}{session ? <div className="invite-result"><strong>You are the {session.role === 'INTERVIEWER' ? 'interviewer' : 'interviewee'}.</strong><span>Session setup is ready.</span><button className="text-button" type="button" onClick={() => setActive(true)}>Enter waiting room</button></div> : invite && <form className="auth-form" onSubmit={join}><label>Name<input value={name} onChange={(event) => setName(event.target.value)} required /></label><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><button className="primary-action" type="submit">Join session <span aria-hidden="true">&#8594;</span></button></form>}</section></main>
+
+  return <main className="page-shell join-page"><nav className="topbar"><a className="brand" href="/"><span className="brand-mark" aria-hidden="true">PV</span><span>PeerView</span></a></nav><section className="join-card"><p className="eyebrow">You are invited</p><h1>Step into the practice room.</h1>{invite && <p className="hero-text">{invite.domain} / {invite.interviewType}. {currentUser ? 'You are signed in, so this link will open your session automatically.' : 'Tell us who is joining. Your role is assigned automatically.'}</p>}{error && <p className="form-error" role="alert">{error}</p>}{session ? <div className="invite-result"><strong>You are the {session.role === 'INTERVIEWER' ? 'interviewer' : 'interviewee'}.</strong><span>Session setup is ready.</span><button className="text-button" type="button" onClick={() => setActive(true)}>Enter waiting room</button></div> : currentUser ? <div className="invite-result"><strong>Signing you in to the session…</strong><span>We are joining your account to this interview.</span></div> : invite && <form className="auth-form" onSubmit={join}><label>Name<input value={name} onChange={(event) => setName(event.target.value)} required /></label><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><button className="primary-action" type="submit">Join session <span aria-hidden="true">&#8594;</span></button><a className="text-button" href={`/?join=${token}`}>Already have an account? Sign in</a></form>}</section></main>
 }
 
 function AboutPage() {
