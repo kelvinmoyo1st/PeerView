@@ -451,6 +451,7 @@
 .video-stage {
   position: relative;
   min-height: min(74vh, 800px);
+  aspect-ratio: 16 / 10;
   overflow: hidden;
   border: 1px solid #39464a;
   background: #0d1519;
@@ -461,6 +462,7 @@
   height: 100%;
   min-height: inherit;
   object-fit: cover;
+  background: #0d1519;
 }
 
 .remote-placeholder {
@@ -476,10 +478,49 @@
   position: absolute;
   right: 20px;
   bottom: 20px;
-  width: 180px;
+  z-index: 2;
+  width: clamp(150px, 19%, 260px);
   aspect-ratio: 4 / 3;
   border: 1px solid #697b7d;
   object-fit: cover;
+  background: #253237;
+}
+
+.video-label {
+  position: absolute;
+  z-index: 3;
+  padding: 6px 9px;
+  background: rgba(13, 21, 25, 0.78);
+  color: #f4f0e8;
+  font: 0.62rem var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.remote-label {
+  top: 16px;
+  left: 16px;
+}
+
+.local-label {
+  right: 20px;
+  bottom: calc(20px + clamp(112px, 14vw, 195px));
+}
+
+.audio-button {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: 50%;
+  padding: 12px 16px;
+  border: 1px solid #e4886f;
+  border-radius: 2px;
+  background: #172126;
+  color: #f4f0e8;
+  font: 0.72rem var(--mono);
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
 }
 
 .call-rail {

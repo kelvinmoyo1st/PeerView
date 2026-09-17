@@ -1,7 +1,7 @@
 import { Client } from '@stomp/stompjs'
 import type { IMessage, StompSubscription } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { API_BASE_URL, appendTranscript, endSession, getEvaluations, getQuestions, markQuestionAsked, submitReview } from './lib/api'
 import type { Evaluation, Session, SessionQuestion } from './lib/api'
@@ -14,6 +14,7 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => void }) {
   const localVideo = useRef<HTMLVideoElement>(null)
   const remoteVideo = useRef<HTMLVideoElement>(null)
+  const remoteStream = useRef<MediaStream | null>(null)
   const peerConnection = useRef<RTCPeerConnection | null>(null)
   const client = useRef<Client | null>(null)
   const subscription = useRef<StompSubscription | null>(null)
@@ -26,6 +27,8 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   const [elapsed, setElapsed] = useState(0)
   const [ended, setEnded] = useState(false)
   const [ending, setEnding] = useState(false)
+  const [audioBlocked, setAudioBlocked] = useState(false)
+  const [remoteReady, setRemoteReady] = useState(false)
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [report, setReport] = useState<string | null>(null)
   const sections = session.sections.length ? session.sections : [{ name: 'Intro', durationMinutes: 5 }]
@@ -35,6 +38,15 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   }, { ...sections[0], sectionStart: 0 })
   const remaining = Math.max(0, currentSection.durationMinutes * 60 - (elapsed - currentSection.sectionStart))
   const timerLabel = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
+
+  const showEnded = useCallback(() => {
+    setEnded(true)
+    if (session.role === 'INTERVIEWER') {
+      getEvaluations(session.id).then(setEvaluations).catch((evaluationError) => {
+        setError(evaluationError instanceof Error ? evaluationError.message : 'Review data could not be loaded.')
+      })
+    }
+  }, [session.id, session.role])
 
   useEffect(() => {
     let active = true
@@ -46,13 +58,25 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
 
     async function start() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        })
         mediaStream = stream
         if (!active) return
         if (localVideo.current) localVideo.current.srcObject = stream
         stream.getTracks().forEach((track) => connection.addTrack(track, stream))
         connection.ontrack = (event) => {
-          if (remoteVideo.current) remoteVideo.current.srcObject = event.streams[0]
+          if (!remoteStream.current) remoteStream.current = new MediaStream()
+          if (!remoteStream.current.getTracks().some((track) => track.id === event.track.id)) {
+            remoteStream.current.addTrack(event.track)
+          }
+          setRemoteReady(true)
+          if (remoteVideo.current && remoteVideo.current.srcObject !== remoteStream.current) {
+            remoteVideo.current.srcObject = remoteStream.current
+            remoteVideo.current.volume = 1
+            remoteVideo.current.play().catch(() => setAudioBlocked(true))
+          }
         }
         const signaling = new Client({
           webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws`),
@@ -116,9 +140,10 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
       transcriptSubscription.current?.unsubscribe()
       client.current?.deactivate()
       connection.close()
+      remoteStream.current = null
       mediaStream?.getTracks().forEach((track) => track.stop())
     }
-  }, [session.id, session.role])
+  }, [session.id, session.role, showEnded])
 
   useEffect(() => {
     if (timerStart === null) return
@@ -162,13 +187,12 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
     }
   }
 
-  function showEnded() {
-    setEnded(true)
-    if (session.role === 'INTERVIEWER') {
-      getEvaluations(session.id).then(setEvaluations).catch((evaluationError) => {
-        setError(evaluationError instanceof Error ? evaluationError.message : 'Review data could not be loaded.')
-      })
-    }
+  function enableAudio() {
+    const video = remoteVideo.current
+    if (!video) return
+    video.muted = false
+    video.volume = 1
+    video.play().then(() => setAudioBlocked(false)).catch(() => setError('Your browser blocked remote audio playback. Check the site audio permission.'))
   }
 
   async function finishCall() {
@@ -196,9 +220,12 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
       </header>
       <section className="call-layout">
         <div className="video-stage">
-          <video ref={remoteVideo} className="remote-video" autoPlay playsInline />
-          <div className="remote-placeholder">Waiting for your peer to join the camera...</div>
-          <video ref={localVideo} className="local-video" autoPlay muted playsInline />
+          <video ref={remoteVideo} className="remote-video" autoPlay playsInline controls={false} onClick={enableAudio} aria-label="Your interview partner" />
+          {!remoteReady && <div className="remote-placeholder">Waiting for your peer to join the camera and microphone...</div>}
+          <span className="video-label remote-label">Your partner</span>
+          <video ref={localVideo} className="local-video" autoPlay muted playsInline aria-label="Your camera preview" />
+          <span className="video-label local-label">You</span>
+          {audioBlocked && <button className="audio-button" type="button" onClick={enableAudio}>Enable audio</button>}
         </div>
         <aside className="call-rail">
           <p className="eyebrow">{session.domain}</p>
