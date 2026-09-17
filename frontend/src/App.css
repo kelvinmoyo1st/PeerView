@@ -666,6 +666,13 @@
   border: 1px solid #39464a;
 }
 
+.report-box {
+  margin-top: 32px;
+  border-color: #5c7778;
+  background: #243338;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
+}
+
 .review-item h2 {
   margin: 0;
   color: #f4f0e8;
@@ -707,9 +714,12 @@
 }
 
 .report-box p {
-  color: #dbe3dd;
-  font-size: 1.1rem;
-  line-height: 1.7;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  font-weight: 500;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 720px) {
