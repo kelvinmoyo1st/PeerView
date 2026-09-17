@@ -19,6 +19,8 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   const client = useRef<Client | null>(null)
   const subscription = useRef<StompSubscription | null>(null)
   const transcriptSubscription = useRef<StompSubscription | null>(null)
+  const pendingCandidates = useRef<RTCIceCandidateInit[]>([])
+  const offerSent = useRef(false)
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState('')
   const [questions, setQuestions] = useState<SessionQuestion[]>([])
@@ -86,15 +88,25 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
             setConnected(true)
             subscription.current = signaling.subscribe(`/topic/session/${session.id}/signal`, async (message: IMessage) => {
               const signal = JSON.parse(message.body) as SignalPayload
-              if (signal.type === 'offer') {
+              if (signal.type === 'ready' && session.role === 'INTERVIEWER' && signal.payload.role === 'INTERVIEWEE' && !offerSent.current) {
+                offerSent.current = true
+                const offer = await connection.createOffer()
+                await connection.setLocalDescription(offer)
+                signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'offer', payload: offer }) })
+              } else if (signal.type === 'offer') {
                 await connection.setRemoteDescription(signal.payload as unknown as RTCSessionDescriptionInit)
+                for (const candidate of pendingCandidates.current.splice(0)) {
+                  await connection.addIceCandidate(candidate)
+                }
                 const answer = await connection.createAnswer()
                 await connection.setLocalDescription(answer)
                 signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'answer', payload: answer }) })
               } else if (signal.type === 'answer') {
                 await connection.setRemoteDescription(signal.payload as unknown as RTCSessionDescriptionInit)
               } else if (signal.type === 'candidate') {
-                await connection.addIceCandidate(signal.payload as RTCIceCandidateInit)
+                const candidate = signal.payload as RTCIceCandidateInit
+                if (connection.remoteDescription) await connection.addIceCandidate(candidate)
+                else pendingCandidates.current.push(candidate)
               } else if (signal.type === 'timer') {
                 setTimerStart(signal.payload.startedAt as number)
               } else if (signal.type === 'ended') {
@@ -102,6 +114,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
                 showEnded()
               }
             })
+            signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'ready', payload: { role: session.role } }) })
             if (session.role === 'INTERVIEWER') {
               const startedAt = Date.now()
               setTimerStart(startedAt)
@@ -111,11 +124,6 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
                 const item = JSON.parse(message.body) as { text: string }
                 setTranscript((current) => [...current, item.text])
               })
-            }
-            if (session.role === 'INTERVIEWER') {
-              const offer = await connection.createOffer()
-              await connection.setLocalDescription(offer)
-              signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'offer', payload: offer }) })
             }
           },
           onStompError: () => setError('The signaling server rejected the connection.'),
@@ -221,7 +229,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
       <section className="call-layout">
         <div className="video-stage">
           <video ref={remoteVideo} className="remote-video" autoPlay playsInline controls={false} onClick={enableAudio} aria-label="Your interview partner" />
-          {!remoteReady && <div className="remote-placeholder">Waiting for your peer to join the camera and microphone...</div>}
+          {!remoteReady && <div className="remote-placeholder">Waiting for your peer to join the session</div>}
           <span className="video-label remote-label">Your partner</span>
           <video ref={localVideo} className="local-video" autoPlay muted playsInline aria-label="Your camera preview" />
           <span className="video-label local-label">You</span>
