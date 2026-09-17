@@ -85,3 +85,4 @@ public class SessionService {
         return new SessionController.InviteResponse(session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus());
     }
 }
+    

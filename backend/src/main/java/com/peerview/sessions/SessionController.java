@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -42,6 +43,7 @@ public class SessionController {
     }
 
     @PostMapping("/{token}/join")
+    @Transactional
     public SessionResponse join(@PathVariable String token, @Valid @RequestBody JoinRequest request) {
         InterviewSession session = service.join(token, request.name(), request.email());
         return SessionResponse.from(session, notifications, request.email(), service.tokenFor(session, request.email()));
