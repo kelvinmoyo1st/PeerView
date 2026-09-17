@@ -23,6 +23,9 @@ public class SecurityConfig {
     @Value("${peerview.cors-origins:http://localhost:5173}")
     private String corsOrigins;
 
+    @Value("${peerview.cors-origin-patterns:https://*.vercel.app,http://localhost:*}")
+    private String corsOriginPatterns;
+
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -47,6 +50,7 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.stream(corsOrigins.split(",")).map(String::trim).toList());
+        configuration.setAllowedOriginPatterns(Arrays.stream(corsOriginPatterns.split(",")).map(String::trim).toList());
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

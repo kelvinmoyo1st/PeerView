@@ -33,6 +33,7 @@ spring:
 peerview:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  cors-origin-patterns: ${CORS_ORIGIN_PATTERNS:https://*.vercel.app,http://localhost:*}
   mail:
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:}
