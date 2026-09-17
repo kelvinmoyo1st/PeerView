@@ -38,6 +38,10 @@ public class EvaluationService {
     public InterviewSession end(UUID sessionId, User participant) {
         InterviewSession session = session(sessionId);
         requireParticipant(session, participant);
+        if (session.getStatus() == com.peerview.sessions.SessionStatus.COMPLETED
+                || session.getStatus() == com.peerview.sessions.SessionStatus.REVIEWED) {
+            return session;
+        }
         session.end();
         List<SessionQuestion> sessionQuestions = questions.findAllBySessionIdOrderByOrderIndex(sessionId);
         var answers = bucketing.bucket(sessionQuestions, transcripts.findAllBySessionIdOrderBySequenceNo(sessionId));

@@ -197,7 +197,11 @@ function JoinPage({ token, currentUser, initialSession }: { token: string; curre
 
   async function join(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    try { setSession(await joinSession(token, name, email)) } catch (joinError) { setError(joinError instanceof Error ? joinError.message : 'Unable to join invite') }
+    try {
+      const joined = await joinSession(token, name, email)
+      if (joined.authToken) saveToken(joined.authToken)
+      setSession(joined)
+    } catch (joinError) { setError(joinError instanceof Error ? joinError.message : 'Unable to join invite') }
   }
 
   if (session && active) return <CallRoom session={session} onEnd={() => setActive(false)} />

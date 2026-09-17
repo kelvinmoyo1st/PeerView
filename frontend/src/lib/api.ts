@@ -23,6 +23,7 @@ export type Session = {
   role: 'INTERVIEWER' | 'INTERVIEWEE'
   inviteUrl: string
   sections: { name: string; durationMinutes: number }[]
+  authToken?: string | null
 }
 export type SessionQuestion = { id: string; sectionName: string; orderIndex: number; text: string; askedAt: string | null }
 export type Evaluation = { questionId: string; question: string; aiScore: number; aiFeedback: string; interviewerScore: number | null; interviewerFeedback: string | null }

@@ -25,6 +25,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   const [timerStart, setTimerStart] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [ended, setEnded] = useState(false)
+  const [ending, setEnding] = useState(false)
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [report, setReport] = useState<string | null>(null)
   const sections = session.sections.length ? session.sections : [{ name: 'Intro', durationMinutes: 5 }]
@@ -159,12 +160,16 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   }
 
   async function finishCall() {
+    if (ending) return
+    setEnding(true)
     try {
       await endSession(session.id)
       if (session.role === 'INTERVIEWER') setEvaluations(await getEvaluations(session.id))
       setEnded(true)
     } catch (endError) {
       setError(endError instanceof Error ? endError.message : 'Unable to end the call')
+    } finally {
+      setEnding(false)
     }
   }
 
@@ -176,7 +181,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
       <header className="call-header">
         <a className="brand" href="/"><span className="brand-mark" aria-hidden="true">PV</span><span>PeerView</span></a>
         <span className={connected ? 'call-status live' : 'call-status'}>{connected ? 'Connected' : 'Connecting'}</span>
-        <button className="end-button" type="button" onClick={finishCall}>End call</button>
+        <button className="end-button" type="button" onClick={finishCall} disabled={ending}>{ending ? 'Ending...' : 'End call'}</button>
       </header>
       <section className="call-layout">
         <div className="video-stage">
