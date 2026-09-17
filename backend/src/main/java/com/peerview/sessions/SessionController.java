@@ -39,14 +39,14 @@ public class SessionController {
     @ResponseStatus(HttpStatus.CREATED)
     public SessionResponse create(Authentication authentication, @Valid @RequestBody CreateSessionRequest request) {
         User host = user(authentication);
-        return SessionResponse.from(service.create(host, request.domainId(), request.interviewTypeId(), request.hostRole(), request.peerEmail()), notifications, host.getEmail(), null);
+        return SessionResponse.from(service.create(host, request.domainId(), request.interviewTypeId(), request.hostRole(), request.peerEmail()), notifications, host.getEmail(), host.getName(), null);
     }
 
     @PostMapping("/{token}/join")
     @Transactional
     public SessionResponse join(@PathVariable String token, @Valid @RequestBody JoinRequest request) {
         InterviewSession session = service.join(token, request.name(), request.email());
-        return SessionResponse.from(session, notifications, request.email(), service.tokenFor(session, request.email()));
+        return SessionResponse.from(session, notifications, request.email(), request.name(), service.tokenFor(session, request.email()));
     }
 
     @GetMapping("/invite/{token}")
@@ -68,12 +68,13 @@ public class SessionController {
                                        @NotBlank @Email String peerEmail) {}
     public record JoinRequest(@NotBlank String name, @NotBlank @Email String email) {}
     public record InviteResponse(String domain, String interviewType, SessionStatus status) {}
-    public record SessionResponse(UUID id, String domain, String interviewType, SessionStatus status, SessionRole role, String inviteUrl, List<SectionResponse> sections, String authToken) {
-        static SessionResponse from(InterviewSession session, InviteNotificationService notifications, String viewerEmail, String authToken) {
+    public record SessionResponse(UUID id, String domain, String interviewType, SessionStatus status, SessionRole role, String inviteUrl, List<SectionResponse> sections, String authToken, String peerName, String participantName) {
+        static SessionResponse from(InterviewSession session, InviteNotificationService notifications, String viewerEmail, String participantName, String authToken) {
             SessionRole role = session.getInterviewer() != null && session.getInterviewer().getEmail().equalsIgnoreCase(viewerEmail)
                 ? SessionRole.INTERVIEWER : SessionRole.INTERVIEWEE;
+            User peer = role == SessionRole.INTERVIEWER ? session.getInterviewee() : session.getInterviewer();
             List<SectionResponse> sections = session.getInterviewType().getSections().stream().map(section -> new SectionResponse(section.getName(), section.getDurationMinutes())).toList();
-            return new SessionResponse(session.getId(), session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus(), role, notifications.inviteUrl(session.getInviteToken()), sections, authToken);
+            return new SessionResponse(session.getId(), session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus(), role, notifications.inviteUrl(session.getInviteToken()), sections, authToken, peer == null ? null : peer.getName(), participantName);
         }
     }
     public record SectionResponse(String name, int durationMinutes) {}

@@ -31,6 +31,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
   const [ending, setEnding] = useState(false)
   const [audioBlocked, setAudioBlocked] = useState(false)
   const [remoteReady, setRemoteReady] = useState(false)
+  const [remoteName, setRemoteName] = useState(session.peerName ?? 'Your partner')
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [report, setReport] = useState<string | null>(null)
   const sections = session.sections.length ? session.sections : [{ name: 'Intro', durationMinutes: 5 }]
@@ -88,6 +89,9 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
             setConnected(true)
             subscription.current = signaling.subscribe(`/topic/session/${session.id}/signal`, async (message: IMessage) => {
               const signal = JSON.parse(message.body) as SignalPayload
+              if (signal.type === 'ready' && signal.payload.role !== session.role) {
+                setRemoteName(typeof signal.payload.name === 'string' ? signal.payload.name : 'Your partner')
+              }
               if (signal.type === 'ready' && session.role === 'INTERVIEWER' && signal.payload.role === 'INTERVIEWEE' && !offerSent.current) {
                 offerSent.current = true
                 const offer = await connection.createOffer()
@@ -114,7 +118,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
                 showEnded()
               }
             })
-            signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'ready', payload: { role: session.role } }) })
+            signaling.publish({ destination: `/app/session/${session.id}/signal`, body: JSON.stringify({ type: 'ready', payload: { role: session.role, name: session.participantName } }) })
             if (session.role === 'INTERVIEWER') {
               const startedAt = Date.now()
               setTimerStart(startedAt)
@@ -151,7 +155,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
       remoteStream.current = null
       mediaStream?.getTracks().forEach((track) => track.stop())
     }
-  }, [session.id, session.role, showEnded])
+  }, [session.id, session.role, session.participantName, showEnded])
 
   useEffect(() => {
     if (timerStart === null) return
@@ -230,7 +234,7 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
         <div className="video-stage">
           <video ref={remoteVideo} className="remote-video" autoPlay playsInline controls={false} onClick={enableAudio} aria-label="Your interview partner" />
           {!remoteReady && <div className="remote-placeholder">Waiting for your peer to join the session</div>}
-          <span className="video-label remote-label">Your partner</span>
+          <span className="video-label remote-label">{remoteName}</span>
           <video ref={localVideo} className="local-video" autoPlay muted playsInline aria-label="Your camera preview" />
           <span className="video-label local-label">You</span>
           {audioBlocked && <button className="audio-button" type="button" onClick={enableAudio}>Enable audio</button>}
