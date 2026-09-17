@@ -184,7 +184,10 @@ function JoinPage({ token, currentUser, initialSession }: { token: string; curre
   useEffect(() => {
     if (currentUser && !session) {
       joinSession(token, currentUser.name, currentUser.email)
-        .then((joined) => setSession(joined))
+        .then((joined) => {
+          if (joined.authToken) saveToken(joined.authToken)
+          setSession(joined)
+        })
         .catch((joinError) => setError(joinError instanceof Error ? joinError.message : 'Unable to join invite'))
     }
   }, [currentUser, session, token])

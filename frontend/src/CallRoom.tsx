@@ -164,8 +164,12 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
     setEnding(true)
     try {
       await endSession(session.id)
-      if (session.role === 'INTERVIEWER') setEvaluations(await getEvaluations(session.id))
       setEnded(true)
+      if (session.role === 'INTERVIEWER') {
+        getEvaluations(session.id).then(setEvaluations).catch((evaluationError) => {
+          setError(evaluationError instanceof Error ? evaluationError.message : 'Review data could not be loaded.')
+        })
+      }
     } catch (endError) {
       setError(endError instanceof Error ? endError.message : 'Unable to end the call')
     } finally {

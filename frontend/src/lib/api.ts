@@ -56,7 +56,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(body?.message ?? `Request failed (${response.status}) at ${path}`)
   }
 
-  return response.json() as Promise<T>
+  const responseText = await response.text()
+  return (responseText ? JSON.parse(responseText) : undefined) as T
 }
 
 export function register(name: string, email: string, password: string) {
