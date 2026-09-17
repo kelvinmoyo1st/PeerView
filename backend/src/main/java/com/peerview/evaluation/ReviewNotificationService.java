@@ -1,6 +1,7 @@
 package com.peerview.evaluation;
 
 import com.peerview.sessions.InterviewSession;
+import com.peerview.sessions.SessionRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -30,7 +31,7 @@ public class ReviewNotificationService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(session.getInterviewee().getEmail());
         message.setSubject("Your PeerView interview report");
-        message.setText(review.getAiNarrativeReport());
+        message.setText(review.reportFor(SessionRole.INTERVIEWEE));
         mailSender.getObject().send(message);
     }
 }

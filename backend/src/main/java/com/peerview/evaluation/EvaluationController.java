@@ -36,7 +36,7 @@ public class EvaluationController {
     @PostMapping("/review")
     public ReviewResponse review(@PathVariable UUID sessionId, @Valid @RequestBody ReviewRequest request, Authentication authentication) {
         Review review = service.review(sessionId, user(authentication), request.items(), request.notes());
-        return new ReviewResponse(review.getId(), review.getFinalOverallScore(), review.getAiNarrativeReport(), review.getSubmittedAt());
+        return new ReviewResponse(review.getId(), review.getFinalOverallScore(), review.reportFor(com.peerview.sessions.SessionRole.INTERVIEWER), review.getSubmittedAt());
     }
 
     private User user(Authentication authentication) { return users.findByEmailIgnoreCase(authentication.getName()).orElseThrow(() -> new IllegalArgumentException("User not found")); }

@@ -33,7 +33,7 @@ public class DashboardController {
     public List<DashboardSession> dashboard(Authentication authentication) {
         User user = users.findByEmailIgnoreCase(authentication.getName()).orElseThrow();
         return sessions.findDistinctByHostIdOrInterviewerIdOrIntervieweeId(user.getId(), user.getId(), user.getId()).stream()
-                .map(session -> new DashboardSession(session.getId(), session.getDomain().getName(), session.getInterviewType().getName(), role(session, user), session.getStatus().name(), reviews.findBySessionId(session.getId()).map(Review::getAiNarrativeReport).orElse(null), session.getCreatedAt())).toList();
+                .map(session -> new DashboardSession(session.getId(), session.getDomain().getName(), session.getInterviewType().getName(), role(session, user), session.getStatus().name(), reviews.findBySessionId(session.getId()).map(review -> review.reportFor(role(session, user))).orElse(null), session.getCreatedAt())).toList();
     }
 
     private SessionRole role(InterviewSession session, User user) { return session.getInterviewer() != null && session.getInterviewer().getId().equals(user.getId()) ? SessionRole.INTERVIEWER : SessionRole.INTERVIEWEE; }

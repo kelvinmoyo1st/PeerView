@@ -2,6 +2,7 @@ package com.peerview.evaluation;
 
 import com.peerview.auth.User;
 import com.peerview.sessions.InterviewSession;
+import com.peerview.sessions.SessionRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -59,5 +60,13 @@ public class Review {
     public double getFinalOverallScore() { return finalOverallScore; }
     public String getInterviewerNotes() { return interviewerNotes; }
     public String getAiNarrativeReport() { return aiNarrativeReport; }
+
+    public String reportFor(SessionRole role) {
+        String perspective = role == SessionRole.INTERVIEWER
+                ? "Interviewer perspective: You conducted the interview. Use the transcript evidence, question scores, and your notes to assess the conversation."
+                : "Interviewee perspective: You participated as the interviewee. Use the transcript evidence and interviewer feedback to identify what to keep practicing."
+        ;
+        return perspective + "\n\n" + aiNarrativeReport;
+    }
     public Instant getSubmittedAt() { return submittedAt; }
 }
