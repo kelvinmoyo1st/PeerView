@@ -142,7 +142,7 @@ function Dashboard({ user, onSignOut }: { user: User; onSignOut: () => void }) {
     try { setSession(await createSession(domainId, typeId, role, peerEmail)) } catch (createError) { setError(createError instanceof Error ? createError.message : 'Unable to create session') }
   }
 
-  if (activeSession) return <CallRoom session={activeSession} onEnd={() => setActiveSession(null)} />
+  if (activeSession) return <CallRoom session={activeSession} onEnd={() => { setActiveSession(null); setSession(null); getDashboard().then(setHistory).catch(() => undefined) }} />
 
   return (
     <main className="page-shell dashboard-page">
@@ -207,7 +207,7 @@ function JoinPage({ token, currentUser, initialSession }: { token: string; curre
     } catch (joinError) { setError(joinError instanceof Error ? joinError.message : 'Unable to join invite') }
   }
 
-  if (session && active) return <CallRoom session={session} onEnd={() => setActive(false)} />
+  if (session && active) return <CallRoom session={session} onEnd={() => window.location.assign('/')} />
 
   return <main className="page-shell join-page"><nav className="topbar"><a className="brand" href="/"><span className="brand-mark" aria-hidden="true">PV</span><span>PeerView</span></a></nav><section className="join-card"><p className="eyebrow">You are invited</p><h1>Step into the practice room.</h1>{invite && <p className="hero-text">{invite.domain} / {invite.interviewType}. {currentUser ? 'You are signed in, so this link will open your session automatically.' : 'Tell us who is joining. Your role is assigned automatically.'}</p>}{error && <p className="form-error" role="alert">{error}</p>}{session ? <div className="invite-result"><strong>You are the {session.role === 'INTERVIEWER' ? 'interviewer' : 'interviewee'}.</strong><span>Session setup is ready.</span><button className="text-button" type="button" onClick={() => setActive(true)}>Enter waiting room</button></div> : currentUser ? <div className="invite-result"><strong>Signing you in to the session…</strong><span>We are joining your account to this interview.</span></div> : invite && <form className="auth-form" onSubmit={join}><label>Name<input value={name} onChange={(event) => setName(event.target.value)} required /></label><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><button className="primary-action" type="submit">Join session <span aria-hidden="true">&#8594;</span></button><a className="text-button" href={`/?join=${token}`}>Already have an account? Sign in</a></form>}</section></main>
 }

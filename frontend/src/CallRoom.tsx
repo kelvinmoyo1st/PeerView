@@ -73,6 +73,9 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
                 await connection.addIceCandidate(signal.payload as RTCIceCandidateInit)
               } else if (signal.type === 'timer') {
                 setTimerStart(signal.payload.startedAt as number)
+              } else if (signal.type === 'ended') {
+                setConnected(false)
+                showEnded()
               }
             })
             if (session.role === 'INTERVIEWER') {
@@ -159,17 +162,21 @@ export function CallRoom({ session, onEnd }: { session: Session; onEnd: () => vo
     }
   }
 
+  function showEnded() {
+    setEnded(true)
+    if (session.role === 'INTERVIEWER') {
+      getEvaluations(session.id).then(setEvaluations).catch((evaluationError) => {
+        setError(evaluationError instanceof Error ? evaluationError.message : 'Review data could not be loaded.')
+      })
+    }
+  }
+
   async function finishCall() {
     if (ending) return
     setEnding(true)
     try {
       await endSession(session.id)
-      setEnded(true)
-      if (session.role === 'INTERVIEWER') {
-        getEvaluations(session.id).then(setEvaluations).catch((evaluationError) => {
-          setError(evaluationError instanceof Error ? evaluationError.message : 'Review data could not be loaded.')
-        })
-      }
+      showEnded()
     } catch (endError) {
       setError(endError instanceof Error ? endError.message : 'Unable to end the call')
     } finally {

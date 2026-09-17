@@ -9,6 +9,7 @@ import com.peerview.transcripts.Transcript;
 import com.peerview.transcripts.TranscriptRepository;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,9 +23,11 @@ public class EvaluationService {
     private final ReviewRepository reviews;
     private final TranscriptBucketingService bucketing;
     private final ReviewNotificationService notifications;
+    private final SimpMessagingTemplate messaging;
 
     public EvaluationService(InterviewSessionRepository sessions, SessionQuestionRepository questions, TranscriptRepository transcripts,
-                              QuestionEvaluationRepository evaluations, ReviewRepository reviews, TranscriptBucketingService bucketing, ReviewNotificationService notifications) {
+                              QuestionEvaluationRepository evaluations, ReviewRepository reviews, TranscriptBucketingService bucketing,
+                              ReviewNotificationService notifications, SimpMessagingTemplate messaging) {
         this.sessions = sessions;
         this.questions = questions;
         this.transcripts = transcripts;
@@ -32,6 +35,7 @@ public class EvaluationService {
         this.reviews = reviews;
         this.bucketing = bucketing;
         this.notifications = notifications;
+        this.messaging = messaging;
     }
 
     @Transactional
@@ -46,6 +50,7 @@ public class EvaluationService {
         List<SessionQuestion> sessionQuestions = questions.findAllBySessionIdOrderByOrderIndex(sessionId);
         var answers = bucketing.bucket(sessionQuestions, transcripts.findAllBySessionIdOrderBySequenceNo(sessionId));
         evaluations.saveAll(sessionQuestions.stream().map(question -> new QuestionEvaluation(question, score(answers.get(question.getId())), feedback(answers.get(question.getId())))).toList());
+        messaging.convertAndSend("/topic/session/" + sessionId + "/signal", new SessionEndedMessage("ended", java.util.Map.of("endedAt", System.currentTimeMillis())));
         return session;
     }
 
@@ -72,9 +77,15 @@ public class EvaluationService {
         return review;
     }
 
-    private int score(String answer) { return answer == null || answer.isBlank() ? 1 : 3; }
-    private String feedback(String answer) { return answer == null || answer.isBlank() ? "No transcript was mapped to this question." : "The answer is ready for the interviewer's detailed review."; }
-    private String narrative(double overall, List<QuestionEvaluation> items, String notes) { return "Overall interviewer score: " + String.format("%.1f", overall) + "/5. Strengths and areas to improve should be discussed with the transcript and the interviewer's notes. " + (notes == null ? "" : notes); }
+    private int score(String answer) { return answer == null || answer.isBlank() ? 1 : Math.min(5, 3 + Math.min(2, answer.trim().split("\\s+").length / 40)); }
+    private String feedback(String answer) { return answer == null || answer.isBlank() ? "No transcript was captured for this question." : "Transcript captured: " + answer.trim(); }
+    private String narrative(double overall, List<QuestionEvaluation> items, String notes) {
+        long answered = items.stream().filter(item -> item.getAiScore() > 1).count();
+        String noteText = notes == null || notes.isBlank() ? "No additional interviewer notes were provided." : "Interviewer notes: " + notes.trim();
+        return "Recorded report: " + answered + " of " + items.size() + " questions had transcript evidence. "
+                + "The displayed score is the interviewer's average of the question scores, not an inferred claim about unrecorded answers. "
+                + "Average score: " + String.format("%.1f", overall) + "/5. " + noteText;
+    }
     private InterviewSession session(UUID id) { return sessions.findById(id).orElseThrow(() -> new IllegalArgumentException("Session not found")); }
     private void requireParticipant(InterviewSession session, User user) { if (!isParticipant(session, user)) throw new IllegalArgumentException("You are not part of this session"); }
     private void requireInterviewer(InterviewSession session, User user) { if (session.getInterviewer() == null || !session.getInterviewer().getId().equals(user.getId())) throw new IllegalArgumentException("Only the interviewer can review this session"); }
@@ -82,4 +93,5 @@ public class EvaluationService {
 
     public record EvaluationResponse(UUID questionId, String question, int aiScore, String aiFeedback, Integer interviewerScore, String interviewerFeedback) {}
     public record ReviewItem(UUID questionId, int score, String feedback) {}
+    public record SessionEndedMessage(String type, java.util.Map<String, Object> payload) {}
 }
