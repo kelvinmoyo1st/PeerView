@@ -3,6 +3,7 @@ package com.peerview.sessions;
 import com.peerview.auth.User;
 import com.peerview.auth.UserRepository;
 import com.peerview.auth.JwtService;
+import com.peerview.auth.AuthService;
 import com.peerview.catalog.Domain;
 import com.peerview.catalog.DomainRepository;
 import com.peerview.catalog.InterviewType;
@@ -22,10 +23,11 @@ public class SessionService {
     private final InviteNotificationService notifications;
     private final QuestionService questionService;
     private final JwtService jwtService;
+    private final AuthService authService;
 
     public SessionService(InterviewSessionRepository sessions, UserRepository users, DomainRepository domains,
                           InterviewTypeRepository types, InviteNotificationService notifications, QuestionService questionService,
-                          JwtService jwtService) {
+                          JwtService jwtService, AuthService authService) {
         this.sessions = sessions;
         this.users = users;
         this.domains = domains;
@@ -33,6 +35,7 @@ public class SessionService {
         this.notifications = notifications;
         this.questionService = questionService;
         this.jwtService = jwtService;
+        this.authService = authService;
     }
 
     @Transactional
@@ -40,7 +43,7 @@ public class SessionService {
         Domain domain = domains.findById(domainId).orElseThrow(() -> new IllegalArgumentException("Domain not found"));
         InterviewType type = types.findById(typeId).orElseThrow(() -> new IllegalArgumentException("Interview type not found"));
         String token = UUID.randomUUID().toString().replace("-", "");
-        InterviewSession session = sessions.save(new InterviewSession(host, domain, type, token, hostRole));
+        InterviewSession session = sessions.save(new InterviewSession(host, domain, type, token, peerEmail, hostRole));
         questionService.generateFor(session);
         notifications.send(peerEmail.trim().toLowerCase(), host.getName(), token);
         return session;
@@ -50,7 +53,11 @@ public class SessionService {
     public InterviewSession join(String token, String name, String email) {
         InterviewSession session = sessions.findByInviteToken(token)
                 .orElseThrow(() -> new IllegalArgumentException("Invite not found"));
-        User peer = users.findByEmailIgnoreCase(email.trim()).orElseGet(() -> users.save(new User(name.trim(), email.trim().toLowerCase(), null)));
+        if (!session.isInviteActive() || !session.getInvitedEmail().equalsIgnoreCase(email.trim())) {
+            throw new IllegalArgumentException("This invite is no longer valid for this email");
+        }
+        User peer = users.findByEmailIgnoreCase(email.trim())
+            .orElseThrow(() -> new IllegalArgumentException("Create your account using this invite first"));
         if (session.getInterviewer() == peer || session.getInterviewee() == peer) {
             prepareResponse(session);
             return session;
@@ -58,6 +65,19 @@ public class SessionService {
         SessionRole peerRole = session.getInterviewer() == null ? SessionRole.INTERVIEWER : SessionRole.INTERVIEWEE;
         session.join(peer, peerRole);
         prepareResponse(session);
+        return session;
+    }
+
+    @Transactional
+    public InterviewSession signupAndJoin(String token, String name, String password) {
+        InterviewSession session = sessions.findByInviteToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Invite not found"));
+        if (!session.isInviteActive()) throw new IllegalArgumentException("This invite is no longer valid");
+        if (users.findByEmailIgnoreCase(session.getInvitedEmail()).isPresent()) {
+            throw new IllegalArgumentException("An account with this invite email already exists");
+        }
+        User peer = authService.register(name, session.getInvitedEmail(), password);
+        join(token, peer.getName(), peer.getEmail());
         return session;
     }
 
@@ -82,7 +102,8 @@ public class SessionService {
     public SessionController.InviteResponse invite(String token) {
         InterviewSession session = sessions.findByInviteToken(token)
                 .orElseThrow(() -> new IllegalArgumentException("Invite not found or expired"));
-        return new SessionController.InviteResponse(session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus());
+        if (!session.isInviteActive()) throw new IllegalArgumentException("This invite is no longer valid");
+        return new SessionController.InviteResponse(session.getDomain().getName(), session.getInterviewType().getName(), session.getStatus(), session.getInvitedEmail(), users.existsByEmailIgnoreCase(session.getInvitedEmail()));
     }
 }
     

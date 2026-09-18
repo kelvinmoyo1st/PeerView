@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/auth/**", "/api/sessions/invite/**", "/actuator/health", "/error").permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/sessions/*/join").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/sessions/*/join", "/api/sessions/*/signup").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth.successHandler(oauth2SuccessHandler))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

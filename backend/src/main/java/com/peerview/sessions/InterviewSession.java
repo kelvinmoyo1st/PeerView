@@ -37,8 +37,14 @@ public class InterviewSession {
     @JoinColumn(name = "interview_type_id", nullable = false)
     private InterviewType interviewType;
 
-    @Column(name = "invite_token", nullable = false, unique = true, length = 64)
+    @Column(name = "invite_token", unique = true, length = 64)
     private String inviteToken;
+
+    @Column(name = "invited_email", length = 255)
+    private String invitedEmail;
+
+    @Column(name = "invite_active")
+    private Boolean inviteActive;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interviewer_id")
@@ -60,18 +66,20 @@ public class InterviewSession {
 
     protected InterviewSession() {}
 
-    public InterviewSession(User host, Domain domain, InterviewType interviewType, String inviteToken, SessionRole hostRole) {
+    public InterviewSession(User host, Domain domain, InterviewType interviewType, String inviteToken, String invitedEmail, SessionRole hostRole) {
         this.host = host;
         this.domain = domain;
         this.interviewType = interviewType;
         this.inviteToken = inviteToken;
+        this.invitedEmail = invitedEmail.trim().toLowerCase();
+        this.inviteActive = true;
         this.status = SessionStatus.INVITED;
         this.createdAt = Instant.now();
         assign(host, hostRole);
     }
 
     public void join(User peer, SessionRole role) {
-        if (status != SessionStatus.INVITED || interviewer != null && interviewee != null) {
+        if (!inviteActive || status != SessionStatus.INVITED || interviewer != null && interviewee != null) {
             throw new IllegalStateException("This invite is no longer available");
         }
         assign(peer, role);
@@ -89,6 +97,8 @@ public class InterviewSession {
             throw new IllegalStateException("This session is not active");
         }
         status = SessionStatus.COMPLETED;
+        inviteActive = false;
+        inviteToken = null;
         endedAt = Instant.now();
     }
 
@@ -107,6 +117,8 @@ public class InterviewSession {
     public Domain getDomain() { return domain; }
     public InterviewType getInterviewType() { return interviewType; }
     public String getInviteToken() { return inviteToken; }
+    public String getInvitedEmail() { return invitedEmail; }
+    public boolean isInviteActive() { return Boolean.TRUE.equals(inviteActive); }
     public User getInterviewer() { return interviewer; }
     public User getInterviewee() { return interviewee; }
     public SessionStatus getStatus() { return status; }

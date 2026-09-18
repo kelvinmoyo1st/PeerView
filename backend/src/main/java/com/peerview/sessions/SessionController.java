@@ -49,6 +49,12 @@ public class SessionController {
         return SessionResponse.from(session, notifications, request.email(), request.name(), service.tokenFor(session, request.email()));
     }
 
+    @PostMapping("/{token}/signup")
+    public SessionResponse signup(@PathVariable String token, @Valid @RequestBody SignupRequest request) {
+        InterviewSession session = service.signupAndJoin(token, request.name(), request.password());
+        return SessionResponse.from(session, notifications, session.getInvitedEmail(), request.name(), service.tokenFor(session, session.getInvitedEmail()));
+    }
+
     @GetMapping("/invite/{token}")
     public InviteResponse invite(@PathVariable String token) {
         return service.invite(token);
@@ -66,8 +72,9 @@ public class SessionController {
 
     public record CreateSessionRequest(@NotNull UUID domainId, @NotNull UUID interviewTypeId, @NotNull SessionRole hostRole,
                                        @NotBlank @Email String peerEmail) {}
-    public record JoinRequest(@NotBlank String name, @NotBlank @Email String email) {}
-    public record InviteResponse(String domain, String interviewType, SessionStatus status) {}
+    public record JoinRequest(String name, @NotBlank @Email String email) {}
+    public record SignupRequest(@NotBlank String name, @NotBlank @jakarta.validation.constraints.Size(min = 8, max = 128) String password) {}
+    public record InviteResponse(String domain, String interviewType, SessionStatus status, String email, boolean accountExists) {}
     public record SessionResponse(UUID id, String domain, String interviewType, SessionStatus status, SessionRole role, String inviteUrl, List<SectionResponse> sections, String authToken, String peerName, String participantName) {
         static SessionResponse from(InterviewSession session, InviteNotificationService notifications, String viewerEmail, String participantName, String authToken) {
             SessionRole role = session.getInterviewer() != null && session.getInterviewer().getEmail().equalsIgnoreCase(viewerEmail)

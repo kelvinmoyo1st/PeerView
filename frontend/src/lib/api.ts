@@ -29,7 +29,7 @@ export type Session = {
 }
 export type SessionQuestion = { id: string; sectionName: string; orderIndex: number; text: string; askedAt: string | null }
 export type Evaluation = { questionId: string; question: string; aiScore: number; aiFeedback: string; interviewerScore: number | null; interviewerFeedback: string | null }
-export type DashboardSession = { id: string; domain: string; interviewType: string; role: Session['role']; status: string; report: string | null; createdAt: string }
+export type DashboardSession = { id: string; domain: string; interviewType: string; role: Session['role']; status: string; peerName: string | null; report: string | null; createdAt: string; peerCount: number }
 
 type AuthResponse = {
   token: string
@@ -106,8 +106,15 @@ export function joinSession(token: string, name: string, email: string) {
   })
 }
 
+export function signupFromInvite(token: string, name: string, password: string) {
+  return request<Session>(`/api/sessions/${token}/signup`, {
+    method: 'POST',
+    body: JSON.stringify({ name, password }),
+  })
+}
+
 export function getInvite(token: string) {
-  return request<{ domain: string; interviewType: string; status: string }>(`/api/sessions/invite/${token}`)
+  return request<{ domain: string; interviewType: string; status: string; email: string; accountExists: boolean }>(`/api/sessions/invite/${token}`)
 }
 
 export function getQuestions(sessionId: string) {

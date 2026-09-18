@@ -61,6 +61,12 @@ public class Review {
     public String getInterviewerNotes() { return interviewerNotes; }
     public String getAiNarrativeReport() { return aiNarrativeReport; }
 
+    public void update(double score, String notes, String narrative) {
+        this.finalOverallScore = score;
+        this.interviewerNotes = notes == null ? "" : notes;
+        this.aiNarrativeReport = narrative;
+    }
+
     public String reportFor(SessionRole role) {
         String perspective = role == SessionRole.INTERVIEWER
                 ? "Interviewer perspective: You conducted the interview. Use the transcript evidence, question scores, and your notes to assess the conversation."

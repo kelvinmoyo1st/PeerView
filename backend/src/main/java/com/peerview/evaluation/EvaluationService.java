@@ -7,6 +7,8 @@ import com.peerview.sessions.InterviewSession;
 import com.peerview.sessions.InterviewSessionRepository;
 import com.peerview.transcripts.Transcript;
 import com.peerview.transcripts.TranscriptRepository;
+import com.peerview.peers.Peer;
+import com.peerview.peers.PeerRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -24,10 +26,11 @@ public class EvaluationService {
     private final TranscriptBucketingService bucketing;
     private final ReviewNotificationService notifications;
     private final SimpMessagingTemplate messaging;
+    private final PeerRepository peers;
 
     public EvaluationService(InterviewSessionRepository sessions, SessionQuestionRepository questions, TranscriptRepository transcripts,
                               QuestionEvaluationRepository evaluations, ReviewRepository reviews, TranscriptBucketingService bucketing,
-                              ReviewNotificationService notifications, SimpMessagingTemplate messaging) {
+                              ReviewNotificationService notifications, SimpMessagingTemplate messaging, PeerRepository peers) {
         this.sessions = sessions;
         this.questions = questions;
         this.transcripts = transcripts;
@@ -36,6 +39,7 @@ public class EvaluationService {
         this.bucketing = bucketing;
         this.notifications = notifications;
         this.messaging = messaging;
+        this.peers = peers;
     }
 
     @Transactional
@@ -49,7 +53,11 @@ public class EvaluationService {
         session.end();
         List<SessionQuestion> sessionQuestions = questions.findAllBySessionIdOrderByOrderIndex(sessionId);
         var answers = bucketing.bucket(sessionQuestions, transcripts.findAllBySessionIdOrderBySequenceNo(sessionId));
-        evaluations.saveAll(sessionQuestions.stream().map(question -> new QuestionEvaluation(question, score(answers.get(question.getId())), feedback(answers.get(question.getId())))).toList());
+        List<QuestionEvaluation> generated = evaluations.saveAll(sessionQuestions.stream().map(question -> new QuestionEvaluation(question, score(answers.get(question.getId())), feedback(answers.get(question.getId())))).toList());
+        if (reviews.findBySessionId(sessionId).isEmpty()) {
+            reviews.save(new Review(session, session.getInterviewer(), 0, "", narrative(0, generated, "No interviewer review submitted yet.")));
+        }
+        associatePeers(session);
         messaging.convertAndSend("/topic/session/" + sessionId + "/signal", new SessionEndedMessage("ended", java.util.Map.of("endedAt", System.currentTimeMillis())));
         return session;
     }
@@ -71,8 +79,10 @@ public class EvaluationService {
         List<QuestionEvaluation> finalEvaluations = evaluations.findAllBySessionQuestionSessionIdOrderBySessionQuestionOrderIndex(sessionId);
         if (finalEvaluations.stream().anyMatch(item -> item.getInterviewerScore() == null)) throw new IllegalArgumentException("Every question needs an interviewer score");
         double overall = finalEvaluations.stream().mapToInt(QuestionEvaluation::getInterviewerScore).average().orElse(0);
-        Review review = reviews.save(new Review(session, interviewer, overall, notes == null ? "" : notes, narrative(overall, finalEvaluations, notes)));
-        session.reviewed();
+        Review review = reviews.findBySessionId(sessionId).orElseGet(() -> new Review(session, interviewer, overall, notes == null ? "" : notes, narrative(overall, finalEvaluations, notes)));
+        review.update(overall, notes, narrative(overall, finalEvaluations, notes));
+        reviews.save(review);
+        if (session.getStatus() == com.peerview.sessions.SessionStatus.COMPLETED) session.reviewed();
         notifications.send(session, review);
         return review;
     }
@@ -82,14 +92,27 @@ public class EvaluationService {
     private String narrative(double overall, List<QuestionEvaluation> items, String notes) {
         long answered = items.stream().filter(item -> item.getAiScore() > 1).count();
         String noteText = notes == null || notes.isBlank() ? "No additional interviewer notes were provided." : "Interviewer notes: " + notes.trim();
+        String improvement = answered < items.size()
+                ? "Areas to improve: provide a recorded answer for every question attempted."
+                : overall < 3
+                    ? "Areas to improve: revisit the questions with more specific examples, reasoning, and outcomes."
+                    : "Areas to improve: use the interviewer notes and transcript evidence to choose the next practice targets.";
         return "Recorded report: " + answered + " of " + items.size() + " questions had transcript evidence. "
                 + "The displayed score is the interviewer's average of the question scores, not an inferred claim about unrecorded answers. "
-                + "Average score: " + String.format("%.1f", overall) + "/5. " + noteText;
+                + "Performance summary: average score " + String.format("%.1f", overall) + "/5. " + improvement + " " + noteText;
     }
     private InterviewSession session(UUID id) { return sessions.findById(id).orElseThrow(() -> new IllegalArgumentException("Session not found")); }
     private void requireParticipant(InterviewSession session, User user) { if (!isParticipant(session, user)) throw new IllegalArgumentException("You are not part of this session"); }
     private void requireInterviewer(InterviewSession session, User user) { if (session.getInterviewer() == null || !session.getInterviewer().getId().equals(user.getId())) throw new IllegalArgumentException("Only the interviewer can review this session"); }
     private boolean isParticipant(InterviewSession session, User user) { return session.getInterviewer() != null && session.getInterviewer().getId().equals(user.getId()) || session.getInterviewee() != null && session.getInterviewee().getId().equals(user.getId()); }
+
+    private void associatePeers(InterviewSession session) {
+        User interviewer = session.getInterviewer();
+        User interviewee = session.getInterviewee();
+        if (interviewer == null || interviewee == null) return;
+        if (!peers.existsByUserIdAndPeerId(interviewer.getId(), interviewee.getId())) peers.save(new Peer(interviewer, interviewee));
+        if (!peers.existsByUserIdAndPeerId(interviewee.getId(), interviewer.getId())) peers.save(new Peer(interviewee, interviewer));
+    }
 
     public record EvaluationResponse(UUID questionId, String question, int aiScore, String aiFeedback, Integer interviewerScore, String interviewerFeedback) {}
     public record ReviewItem(UUID questionId, int score, String feedback) {}
